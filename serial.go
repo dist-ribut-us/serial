@@ -36,3 +36,49 @@ func unmarshalUint(l int, b []byte) uint64 {
 	}
 	return ui
 }
+
+// MarshalBoolSlice marshals a slice of bools into a byte slice. Each bool takes
+// only one bit. It does not check the slice length and will panic if the slice
+// is not long enough. The required length with be the length of the bool slice
+// divided by 8 rounded up plus 4.
+func MarshalBoolSlice(bls []bool, b []byte) {
+	ln := len(bls)
+	MarshalUint32(uint32(ln), b)
+	var bt byte
+	i := 4
+	for j, bl := range bls {
+		bt <<= 1
+		if bl {
+			bt |= 1
+		}
+		if (j+1)%8 == 0 {
+			b[i] = bt
+			bt = 0
+			i++
+		}
+	}
+	if os := ln % 8; os != 0 {
+		// fix offset
+		for ; os < 8; os++ {
+			bt <<= 1
+		}
+		b[i] = bt
+	}
+}
+
+// UnmarshalBoolSlice will unmarshal a slice of bools from a byte slice. If the
+// byte slice is malformed, it may panic.
+func UnmarshalBoolSlice(b []byte) []bool {
+	bls := make([]bool, int(UnmarshalUint32(b)))
+	i := 4
+	var bt byte
+	for j := range bls {
+		if j%8 == 0 {
+			bt = b[i]
+			i++
+		}
+		bls[j] = bt >= 128
+		bt <<= 1
+	}
+	return bls
+}

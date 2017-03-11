@@ -22,19 +22,27 @@ func MarshalUint16(ui uint16, b []byte) { marshalUint(uint64(ui), 2, b) }
 func UnmarshalUint16(b []byte) uint16 { return uint16(unmarshalUint(2, b)) }
 
 func marshalUint(ui uint64, l int, b []byte) {
-	for i := 0; i < l; i++ {
+	i := 0
+	for ; i < l && ui > 0; i++ {
 		b[i] = byte(ui)
 		ui >>= 8
+	}
+	for ; i < l; i++ {
+		b[i] = 0
 	}
 }
 
 func unmarshalUint(l int, b []byte) uint64 {
 	var ui uint64
-	for i := l - 1; i >= 0; i-- {
-		ui <<= 8
+	i := l - 1
+	for {
 		ui += uint64(b[i])
+		if i == 0 {
+			return ui
+		}
+		i--
+		ui <<= 8
 	}
-	return ui
 }
 
 // MarshalBoolSlice marshals a slice of bools into a byte slice. Each bool takes

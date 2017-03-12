@@ -4,7 +4,7 @@ package serial
 // MarshalUint32 takes a unit and a byte slice and writes the uint32 to the
 // first 4 bytes of the slice. It does not check the slice length and will panic
 // if the slice does not have a length of at least 4.
-func MarshalUint32(ui uint32, b []byte) { marshalUint(uint64(ui), 4, b) }
+func MarshalUint32(ui uint32, b []byte) []byte { return marshalUint(uint64(ui), 4, b) }
 
 // UnmarshalUint32 reads the first 4 bytes of a slice into a uint32. It does not
 // check the slice length and will panic if the slice does not have a length of
@@ -14,14 +14,17 @@ func UnmarshalUint32(b []byte) uint32 { return uint32(unmarshalUint(4, b)) }
 // MarshalUint16 takes a unit and a byte slice and writes the uint16 to the
 // first 2 bytes of the slice. It does not check the slice length and will panic
 // if the slice does not have a length of at least 2.
-func MarshalUint16(ui uint16, b []byte) { marshalUint(uint64(ui), 2, b) }
+func MarshalUint16(ui uint16, b []byte) []byte { return marshalUint(uint64(ui), 2, b) }
 
 // UnmarshalUint16 reads the first 2 bytes of a slice into a uint16. It does not
 // check the slice length and will panic if the slice does not have a length of
 // at least 2.
 func UnmarshalUint16(b []byte) uint16 { return uint16(unmarshalUint(2, b)) }
 
-func marshalUint(ui uint64, l int, b []byte) {
+func marshalUint(ui uint64, l int, b []byte) []byte {
+	if b == nil {
+		b = make([]byte, l)
+	}
 	i := 0
 	for ; i < l && ui > 0; i++ {
 		b[i] = byte(ui)
@@ -30,6 +33,7 @@ func marshalUint(ui uint64, l int, b []byte) {
 	for ; i < l; i++ {
 		b[i] = 0
 	}
+	return b
 }
 
 func unmarshalUint(l int, b []byte) uint64 {

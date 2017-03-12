@@ -39,3 +39,7 @@ func TestByteSlice(t *testing.T) {
 		}
 	}
 }
+
+func TestReturn(t *testing.T) {
+	assert.Equal(t, uint32(12345), UnmarshalUint32(MarshalUint32(12345, nil)))
+}

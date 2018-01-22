@@ -24,7 +24,7 @@ func TestUint16Marshal(t *testing.T) {
 	}
 }
 
-func TestByteSlice(t *testing.T) {
+func TestBoolSlice(t *testing.T) {
 	maxLen := 500
 	b := make([]byte, (maxLen/8)+5)
 	for i := 0; i < 100; i++ {

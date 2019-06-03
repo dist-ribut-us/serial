@@ -43,3 +43,102 @@ func TestBoolSlice(t *testing.T) {
 func TestReturn(t *testing.T) {
 	assert.Equal(t, uint32(12345), UnmarshalUint32(MarshalUint32(12345, nil)))
 }
+
+func TestByteSlices(t *testing.T) {
+	tt := []struct {
+		name       string
+		data       [][]byte
+		prefixLens []int
+	}{
+		{
+			name: "Basic",
+			data: [][]byte{
+				{1, 2, 3, 4},
+				{5, 6, 7, 8},
+				{9, 10, 11, 12},
+			},
+			prefixLens: []int{2, 4, 8},
+		},
+		{
+			name: "Zero",
+			data: [][]byte{
+				{1, 2, 3, 4},
+				{5, 6, 7, 8},
+				{9, 10, 11, 12},
+			},
+			prefixLens: []int{2, 4, 0},
+		},
+		{
+			name: "Negative",
+			data: [][]byte{
+				{1, 2, 3, 4},
+				{5, 6, 7, 8},
+				{9, 10, 11, 12},
+			},
+			prefixLens: []int{2, -4, 2},
+		},
+		{
+			name: "Long",
+			data: [][]byte{
+				{1, 2, 3, 4},
+				{1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4},
+				{9, 10, 11, 12},
+			},
+			prefixLens: []int{2, 2, 0},
+		},
+		{
+			name: "One byte zero",
+			data: [][]byte{
+				{1, 2, 3, 4},
+				{1, 2, 3},
+				{0},
+			},
+			prefixLens: []int{2, 2, 0},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := MarshalByteSlices(tc.prefixLens, tc.data)
+			assert.NoError(t, err)
+			data, err := UnmarshalByteSlices(tc.prefixLens, b)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.data, data)
+
+			p := ByteSlicesPrefixer(tc.prefixLens)
+			b, err = p.Marshal(tc.data)
+			assert.NoError(t, err)
+			data, err = p.Unmarshal(b)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.data, data)
+		})
+	}
+}
+
+func TestSlicesPacker(t *testing.T) {
+	tt := []struct {
+		name         string
+		data         [][]byte
+		slicesPacker SlicesPacker
+	}{
+		{
+			name: "Basic",
+			data: [][]byte{
+				{1, 2, 3, 4},
+				{5, 6, 7, 8},
+				{9, 10, 11, 12},
+			},
+			slicesPacker: SlicesPacker{2, 2},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := tc.slicesPacker.Marshal(tc.data)
+			assert.NoError(t, err)
+			data, err := tc.slicesPacker.Unmarshal(b)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.data, data)
+		})
+	}
+}

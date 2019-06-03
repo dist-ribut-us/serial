@@ -1,6 +1,10 @@
 // Package serial provides helper function for serializing data.
 package serial
 
+import (
+	"github.com/dist-ribut-us/errors"
+)
+
 // MarshalUint32 takes a unit and a byte slice and writes the uint32 to the
 // first 4 bytes of the slice. It does not check the slice length and will panic
 // if the slice does not have a length of at least 4.
@@ -93,4 +97,192 @@ func UnmarshalBoolSlice(b []byte) []bool {
 		bt <<= 1
 	}
 	return bls
+}
+
+const (
+	ErrLengthsDoNotMatch = errors.String("Lengths do not match")
+	ErrLengthTooLong     = errors.String("Length cannot exceed 8 bytes")
+	ErrIncorrectZero     = errors.String("Zero is only valid as final length")
+	ErrBadFormat         = errors.String("Not propertly formatted")
+)
+
+type ByteSlicesPrefixer []int
+
+func (pre ByteSlicesPrefixer) Marshal(data [][]byte) ([]byte, error) {
+	if len(pre) != len(data) {
+		return nil, ErrLengthsDoNotMatch
+	}
+	sum := 0
+	for i, ln := range pre {
+		if ln > 8 {
+			return nil, ErrLengthTooLong
+		}
+		if ln > 0 {
+			sum += ln
+		}
+		sum += len(data[i])
+	}
+	idx := 0
+	b := make([]byte, sum)
+	for i, ln := range pre {
+		if ln > 0 {
+			marshalUint(uint64(len(data[i])), ln, b[idx:])
+			idx += ln
+		}
+		copy(b[idx:], data[i])
+		idx += len(data[i])
+	}
+	return b, nil
+}
+
+func (pre ByteSlicesPrefixer) Unmarshal(b []byte) ([][]byte, error) {
+	data := make([][]byte, len(pre))
+	idx := 0
+	ln := 0
+	for i, pln := range pre {
+		if pln > 8 {
+			return nil, ErrLengthTooLong
+		}
+		if pln > 0 {
+			if idx+pln > len(b) {
+				return nil, ErrBadFormat
+			}
+			ln = int(unmarshalUint(pln, b[idx:]))
+			idx += pln
+		} else if pln < 0 {
+			ln = -pln
+		} else {
+			if i != len(pre)-1 {
+				return nil, ErrIncorrectZero
+			}
+			data[i] = b[idx:]
+			break
+		}
+
+		if idx+ln > len(b) {
+			return nil, ErrBadFormat
+		}
+		data[i] = b[idx : idx+ln]
+		idx += ln
+	}
+	return data, nil
+}
+
+// MarshalByteSlices takes a slice of byte slices and marshals them into a
+// a single byte slice. The prefixLens determine how many bytes to use for
+// length headers. Positive values set the length in bytes, values less than or
+// equal to 0 will result in no prefix being added.
+func MarshalByteSlices(prefixLens []int, data [][]byte) ([]byte, error) {
+	if len(prefixLens) != len(data) {
+		return nil, ErrLengthsDoNotMatch
+	}
+	sum := 0
+	for i, ln := range prefixLens {
+		if ln > 8 {
+			return nil, ErrLengthTooLong
+		}
+		if ln > 0 {
+			sum += ln
+		}
+		sum += len(data[i])
+	}
+	idx := 0
+	b := make([]byte, sum)
+	for i, ln := range prefixLens {
+		if ln > 0 {
+			marshalUint(uint64(len(data[i])), ln, b[idx:])
+			idx += ln
+		}
+		copy(b[idx:], data[i])
+		idx += len(data[i])
+	}
+	return b, nil
+}
+
+// UnmarshalByteSlices takes a byte slice and breaks it into a slice of byte
+// slices. The prefixes determine what length headers to expect. Postive values
+// are interpreted as the number of bytes to read as the length header. Negative
+// values indicate the absolute length (so -5 means the slice is 5 bytes long)
+// and 0 is only valid for the final value and means consume the rest.
+func UnmarshalByteSlices(prefixLens []int, b []byte) ([][]byte, error) {
+	data := make([][]byte, len(prefixLens))
+	idx := 0
+	ln := 0
+	for i, pln := range prefixLens {
+		if pln > 8 {
+			return nil, ErrLengthTooLong
+		}
+		if pln > 0 {
+			if idx+pln > len(b) {
+				return nil, ErrBadFormat
+			}
+			ln = int(unmarshalUint(pln, b[idx:]))
+			idx += pln
+		} else if pln < 0 {
+			ln = -pln
+		} else {
+			if i != len(prefixLens)-1 {
+				return nil, ErrIncorrectZero
+			}
+			data[i] = b[idx:]
+			break
+		}
+
+		if idx+ln > len(b) {
+			return nil, ErrBadFormat
+		}
+		data[i] = b[idx : idx+ln]
+		idx += ln
+	}
+	return data, nil
+}
+
+// SlicesPacker describes the number of bytes to use to describe the count of
+// slices and Size describes the number of bytes to use to describe the size of
+// each slice
+type SlicesPacker struct {
+	Count int
+	Size  int
+}
+
+func (s SlicesPacker) Marshal(data [][]byte) ([]byte, error) {
+	if s.Count > 8 || s.Size > 8 {
+		return nil, ErrLengthTooLong
+	}
+
+	l := s.Count
+	for _, d := range data {
+		l += s.Size + len(d)
+	}
+
+	b := make([]byte, s.Count, l)
+	marshalUint(uint64(len(data)), s.Count, b)
+
+	buf := make([]byte, s.Size)
+	for _, d := range data {
+		marshalUint(uint64(len(d)), s.Size, buf)
+		b = append(b, buf...)
+		b = append(b, d...)
+	}
+
+	return b, nil
+}
+
+func (s SlicesPacker) Unmarshal(data []byte) ([][]byte, error) {
+	if s.Count > 8 || s.Size > 8 {
+		return nil, ErrLengthTooLong
+	}
+
+	c := unmarshalUint(s.Count, data)
+	data = data[s.Count:]
+
+	b := make([][]byte, c)
+	for i := range b {
+		sz := unmarshalUint(s.Size, data)
+		data = data[s.Size:]
+		b[i] = data[:sz]
+		data = data[sz:]
+	}
+
+	return b, nil
 }

@@ -100,14 +100,24 @@ func UnmarshalBoolSlice(b []byte) []bool {
 }
 
 const (
+	// ErrLengthsDoNotMatch is returned when a ByteSlicesPrefixer is given data
+	// with the wrong number of byte slices.
 	ErrLengthsDoNotMatch = errors.String("Lengths do not match")
-	ErrLengthTooLong     = errors.String("Length cannot exceed 8 bytes")
-	ErrIncorrectZero     = errors.String("Zero is only valid as final length")
-	ErrBadFormat         = errors.String("Not propertly formatted")
+	// ErrLengthTooLong is returned if a ByteSlicesPrefixer length is above 8.
+	ErrLengthTooLong = errors.String("Length cannot exceed 8 bytes")
+	// ErrIncorrectZero is returned when a BySlicesPrefixer has a zero in any but
+	// the last position.
+	ErrIncorrectZero = errors.String("Zero is only valid as final length")
+	// ErrBadFormat is returned during ByteSlicesPrefixer Unmarshal if the format
+	// does not match the description.
+	ErrBadFormat = errors.String("Not properly formatted")
 )
 
+// ByteSlicesPrefixer describes how to prefix a [][]byte for serialization.
 type ByteSlicesPrefixer []int
 
+// Marshal uses the ByteSlicesPrefixer to marshal a [][]byte and insert length
+// information.
 func (pre ByteSlicesPrefixer) Marshal(data [][]byte) ([]byte, error) {
 	if len(pre) != len(data) {
 		return nil, ErrLengthsDoNotMatch
@@ -135,6 +145,8 @@ func (pre ByteSlicesPrefixer) Marshal(data [][]byte) ([]byte, error) {
 	return b, nil
 }
 
+// Unmarshal uses the ByteSlicesPrefixer to unmarshal a []byte int a [][]byte by
+// extracting length information.
 func (pre ByteSlicesPrefixer) Unmarshal(b []byte) ([][]byte, error) {
 	data := make([][]byte, len(pre))
 	idx := 0
@@ -245,6 +257,8 @@ type SlicesPacker struct {
 	Size  int
 }
 
+// Marshal a [][]byte into []byte inserting a header with total number of slices
+// and prefixing the length of each slice.
 func (s SlicesPacker) Marshal(data [][]byte) ([]byte, error) {
 	if s.Count > 8 || s.Size > 8 {
 		return nil, ErrLengthTooLong
@@ -268,6 +282,8 @@ func (s SlicesPacker) Marshal(data [][]byte) ([]byte, error) {
 	return b, nil
 }
 
+// Unmarshal a []byte to a [][]byte using the SlicesPacker to extract the total
+// count and the size of each.
 func (s SlicesPacker) Unmarshal(data []byte) ([][]byte, error) {
 	if s.Count > 8 || s.Size > 8 {
 		return nil, ErrLengthTooLong
